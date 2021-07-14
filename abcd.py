@@ -1,8 +1,13 @@
-import os
 import pandas as pd
 idx = pd.IndexSlice
 
 
+INPUTS = {
+    'fcon': 'abcd_betnet02.tsv',
+    'scon': 'abcd_dti_p101.tsv',
+    'imgincl': 'abcd_imgincl01.tsv',
+    'mri': 'abcd_mri01.tsv'
+}
 INDEX = ['src_subject_id', 'eventname']
 EVENTS = ['baseline_year_1_arm_1', '2_year_follow_up_y_arm_1']
 
@@ -36,7 +41,7 @@ def load_mri_data(abcd_path, data_type, dropna=False, include_rec=True, exclude_
     * scon: DTI atlas tract fractional anisotropy averages
 
     Params:
-        abcd_path: ABCD dataset directory
+        abcd_path: ABCD dataset directory Path
         data_type: type of dataset to load
         dropna: drop subject if any dataset column is NA
         include_rec: filter by recommended inclusion?
@@ -48,14 +53,10 @@ def load_mri_data(abcd_path, data_type, dropna=False, include_rec=True, exclude_
             * fcon, scon: mean motion
     """
     # read tabulated data
-    if data_type == 'fcon':
-        filename = 'abcd_betnet02.tsv'
-    elif data_type == 'scon':
-        filename = 'abcd_dti_p101.tsv'
-    else:
-        raise ValueError('Unknown dataset type ' + data)
+    if data_type not in INPUTS:
+        raise ValueError('Unknown dataset type ' + data_type)
 
-    data = pd.read_csv(os.path.join(abcd_path, filename), sep='\t',
+    data = pd.read_csv(abcd_path / INPUTS[data_type], sep='\t',
                        skiprows=[1], index_col=INDEX)
 
     # columns
@@ -74,12 +75,14 @@ def load_mri_data(abcd_path, data_type, dropna=False, include_rec=True, exclude_
         columns = data.columns.str.startswith(SCON_TEMPLATE.format(''))
 
         extra_columns = ['dmri_dti_meanmotion']
+    else:
+        raise ValueError('Cannot load ' + data_type)
 
     data_cols = data.loc[:, columns]
 
     # rows
     if include_rec:
-        imgincl = pd.read_csv(os.path.join(abcd_path, 'abcd_imgincl01.tsv'), sep='\t',
+        imgincl = pd.read_csv(abcd_path / INPUTS['imgincl'], sep='\t',
                               skiprows=[1], index_col=INDEX)
         imgincl = imgincl.dropna(subset=['visit'])
         # NOTE has identical duplicate rows for whatever reason
@@ -89,6 +92,8 @@ def load_mri_data(abcd_path, data_type, dropna=False, include_rec=True, exclude_
             inclusion = imgincl.loc[imgincl['imgincl_rsfmri_include'] == 1].index
         elif data_type == 'scon':
             inclusion = imgincl.loc[imgincl['imgincl_dmri_include'] == 1].index
+        else:
+            raise ValueError('Cannot load ' + data_type)
 
         included = data_cols.loc[inclusion, :]
     else:
@@ -102,7 +107,7 @@ def load_mri_data(abcd_path, data_type, dropna=False, include_rec=True, exclude_
     dataset = data.loc[idx[subs_long, EVENTS], columns]
 
     # extra
-    mri = pd.read_csv(os.path.join(abcd_path, 'abcd_mri01.tsv'), sep='\t',
+    mri = pd.read_csv(abcd_path / INPUTS['mri'], sep='\t',
                       skiprows=[1], index_col=INDEX)
     # NOTE has empty duplicate rows for whatever reason
     mri = mri.dropna(how='all', subset=SCAN_INFO)
@@ -117,12 +122,12 @@ def get_scon_dict(abcd_path):
     Builds and returns a dict of DTI atlas tract descriptions.
 
     Params:
-        abcd_path: ABCD dataset directory
+        abcd_path: ABCD dataset directory Path
 
     Returns:
         scon_dict: dict with (code, description) for each tract
     """
-    dti_labels = pd.read_csv(os.path.join(abcd_path, 'abcd_dti_p101.tsv'), sep='\t', nrows=1)
+    dti_labels = pd.read_csv(abcd_path / INPUTS['scon'], sep='\t', nrows=1)
     code_start = SCON_TEMPLATE.format('')
     description_starts = ('Average fractional anisotropy within ', 'DTI atlas tract ')
 
@@ -140,7 +145,7 @@ def load_covariates(path, simple_race=False):
     Load ABCD covariates.
 
     Params:
-        path: Covariates file
+        path: Covariates file Path
         simple_race: Simpler race with [White, Black, Asian, Other, Mixed].
             Other includes missing.
 
