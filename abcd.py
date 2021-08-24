@@ -1,7 +1,9 @@
+from pathlib import Path
 import pandas as pd
 idx = pd.IndexSlice
 
-
+PATH = Path('inputs/ABCD')
+OUTPUT = Path('outputs')
 INPUTS = {
     'fcon': 'abcd_betnet02.tsv',
     'scon': 'abcd_dti_p101.tsv',
@@ -34,15 +36,16 @@ SCAN_INFO = ['mri_info_manufacturer', 'mri_info_manufacturersmn',
              'mri_info_deviceserialnumber', 'mri_info_softwareversion']
 
 
-def load_mri_data(abcd_path, data_type, dropna=False, include_rec=True, exclude_n=True):
+def load_mri_data(data_type, abcd_path=PATH, dropna=False,
+                  include_rec=True, exclude_n=True):
     """
     Load a longitudinally ordered ABCD MRI dataset.
     * fcon: Gordon network correlations
     * scon: DTI atlas tract fractional anisotropy averages
 
     Params:
-        abcd_path: ABCD dataset directory Path
         data_type: type of dataset to load
+        abcd_path: ABCD dataset directory Path
         dropna: drop subject if any dataset column is NA
         include_rec: filter by recommended inclusion?
         exclude_n: [fcon] ignore None "network"?
@@ -70,11 +73,11 @@ def load_mri_data(abcd_path, data_type, dropna=False, include_rec=True, exclude_
             for j in range(i+1):
                 columns.append(FCON_TEMPLATE.format(fcon_codes[i], fcon_codes[j]))
 
-        extra_columns = ['rsfmri_c_ngd_meanmotion']
+        extra_columns = {'rsfmri_c_ngd_meanmotion': 'meanmotion'}
     elif data_type == 'scon':
         columns = data.columns.str.startswith(SCON_TEMPLATE.format(''))
 
-        extra_columns = ['dmri_dti_meanmotion']
+        extra_columns = {'dmri_dti_meanmotion': 'meanmotion'}
     else:
         raise ValueError('Cannot load ' + data_type)
 
@@ -111,13 +114,14 @@ def load_mri_data(abcd_path, data_type, dropna=False, include_rec=True, exclude_
                       skiprows=[1], index_col=INDEX)
     # NOTE has empty duplicate rows for whatever reason
     mri = mri.dropna(how='all', subset=SCAN_INFO)
-
-    extra = data.loc[dataset.index, extra_columns].join(mri[SCAN_INFO])
+    extra = (data.loc[dataset.index, extra_columns.keys()]
+             .rename(columns=extra_columns)
+             .join(mri[SCAN_INFO]))
 
     return dataset, extra
 
 
-def get_scon_dict(abcd_path):
+def get_scon_dict(abcd_path=PATH):
     """
     Builds and returns a dict of DTI atlas tract descriptions.
 
@@ -140,22 +144,27 @@ def get_scon_dict(abcd_path):
     return scon_dict
 
 
-def load_covariates(path, simple_race=False):
+def load_covariates(path=OUTPUT / 'abcd_covariates.csv', covars=None,
+                    simple_race=False):
     """
     Load ABCD covariates.
 
     Params:
-        path: Covariates file Path
-        simple_race: Simpler race with [White, Black, Asian, Other, Mixed].
-            Other includes missing.
+        path: covariates file Path
+        covars: list of columns to load. If None, all.
+        simple_race: Include simple 'race' covariate with [White, Black,
+            Asian, Other, Mixed]. Other includes missing.
 
     Returns:
         covariates: DataFrame indexed by (subject, event)
     """
     covariates = pd.read_csv(path, index_col=INDEX)
+    if covars is not None:
+        covars = covariates[covars].copy()
+    else:
+        covars = covariates.copy()
 
     if simple_race:
-        covariates['race'] = covariates['race.6level'].replace('AIAN/NHPI', 'Other').fillna('Other')
-        covariates = covariates.drop('race.6level', axis=1)
-
-    return covariates
+        covars['race'] = (covariates['race.6level']
+                          .replace('AIAN/NHPI', 'Other').fillna('Other'))
+    return covars
