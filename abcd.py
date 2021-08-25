@@ -3,7 +3,7 @@ import pandas as pd
 idx = pd.IndexSlice
 
 PATH = Path('inputs/ABCD')
-OUTPUT = Path('outputs')
+OUT_PATH = Path('outputs')
 INPUTS = {
     'fcon': 'abcd_betnet02.tsv',
     'scon': 'abcd_dti_p101.tsv',
@@ -36,7 +36,7 @@ SCAN_INFO = ['mri_info_manufacturer', 'mri_info_manufacturersmn',
              'mri_info_deviceserialnumber', 'mri_info_softwareversion']
 
 
-def load_mri_data(data_type, abcd_path=PATH, dropna=False,
+def load_mri_data(data_type, path=None, dropna=False,
                   include_rec=True, exclude_n=True):
     """
     Load a longitudinally ordered ABCD MRI dataset.
@@ -45,7 +45,7 @@ def load_mri_data(data_type, abcd_path=PATH, dropna=False,
 
     Params:
         data_type: type of dataset to load
-        abcd_path: ABCD dataset directory Path
+        path: specific ABCD MRI dataset file Path
         dropna: drop subject if any dataset column is NA
         include_rec: filter by recommended inclusion?
         exclude_n: [fcon] ignore None "network"?
@@ -59,8 +59,13 @@ def load_mri_data(data_type, abcd_path=PATH, dropna=False,
     if data_type not in INPUTS:
         raise ValueError('Unknown dataset type ' + data_type)
 
-    data = pd.read_csv(abcd_path / INPUTS[data_type], sep='\t',
-                       skiprows=[1], index_col=INDEX)
+    raw_data = pd.read_csv(PATH / INPUTS[data_type], sep='\t',
+                           skiprows=[1], index_col=INDEX)
+    if path is not None:
+        data = pd.read_csv(path, sep=None, engine='python',
+                           index_col=INDEX)
+    else:
+        data = raw_data
 
     # columns
     if data_type == 'fcon':
@@ -85,7 +90,7 @@ def load_mri_data(data_type, abcd_path=PATH, dropna=False,
 
     # rows
     if include_rec:
-        imgincl = pd.read_csv(abcd_path / INPUTS['imgincl'], sep='\t',
+        imgincl = pd.read_csv(PATH / INPUTS['imgincl'], sep='\t',
                               skiprows=[1], index_col=INDEX)
         imgincl = imgincl.dropna(subset=['visit'])
         # NOTE has identical duplicate rows for whatever reason
@@ -98,10 +103,11 @@ def load_mri_data(data_type, abcd_path=PATH, dropna=False,
         else:
             raise ValueError('Cannot load ' + data_type)
 
-        included = data_cols.loc[inclusion, :]
+        included = data_cols.loc[data_cols.index.intersection(inclusion), :]
     else:
         included = data_cols
 
+    # longitudinal only dataset
     if dropna:
         included = included.dropna()
 
@@ -110,28 +116,26 @@ def load_mri_data(data_type, abcd_path=PATH, dropna=False,
     dataset = data.loc[idx[subs_long, EVENTS], columns]
 
     # extra
-    mri = pd.read_csv(abcd_path / INPUTS['mri'], sep='\t',
+    mri = pd.read_csv(PATH / INPUTS['mri'], sep='\t',
                       skiprows=[1], index_col=INDEX)
     # NOTE has empty duplicate rows for whatever reason
     mri = mri.dropna(how='all', subset=SCAN_INFO)
-    extra = (data.loc[dataset.index, extra_columns.keys()]
+
+    extra = (raw_data.loc[dataset.index, extra_columns.keys()]
              .rename(columns=extra_columns)
              .join(mri[SCAN_INFO]))
 
     return dataset, extra
 
 
-def get_scon_dict(abcd_path=PATH):
+def get_scon_dict():
     """
     Builds and returns a dict of DTI atlas tract descriptions.
-
-    Params:
-        abcd_path: ABCD dataset directory Path
 
     Returns:
         scon_dict: dict with (code, description) for each tract
     """
-    dti_labels = pd.read_csv(abcd_path / INPUTS['scon'], sep='\t', nrows=1)
+    dti_labels = pd.read_csv(PATH / INPUTS['scon'], sep='\t', nrows=1)
     code_start = SCON_TEMPLATE.format('')
     description_starts = ('Average fractional anisotropy within ', 'DTI atlas tract ')
 
@@ -144,13 +148,11 @@ def get_scon_dict(abcd_path=PATH):
     return scon_dict
 
 
-def load_covariates(path=OUTPUT / 'abcd_covariates.csv', covars=None,
-                    simple_race=False):
+def load_covariates(covars=None, simple_race=False):
     """
     Load ABCD covariates.
 
     Params:
-        path: covariates file Path
         covars: list of columns to load. If None, all.
         simple_race: Include simple 'race' covariate with [White, Black,
             Asian, Other, Mixed]. Other includes missing.
@@ -158,7 +160,7 @@ def load_covariates(path=OUTPUT / 'abcd_covariates.csv', covars=None,
     Returns:
         covariates: DataFrame indexed by (subject, event)
     """
-    covariates = pd.read_csv(path, index_col=INDEX)
+    covariates = pd.read_csv(OUT_PATH / 'abcd_covariates.csv', index_col=INDEX)
     if covars is not None:
         covars = covariates[covars].copy()
     else:
