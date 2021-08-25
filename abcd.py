@@ -167,4 +167,24 @@ def load_covariates(path=OUTPUT / 'abcd_covariates.csv', covars=None,
     if simple_race:
         covars['race'] = (covariates['race.6level']
                           .replace('AIAN/NHPI', 'Other').fillna('Other'))
+
     return covars
+
+
+def filter_siblings(data, random_state=None):
+    """
+    Sample 1 subject per family.
+
+    Params:
+        data: DataFrame indexed by (subject, event)
+        random_state: random seed
+
+    returns:
+        filtered: DataFrame indexed by (subject, event)
+    """
+    family = load_covariates(covars=['rel_family_id'])
+    subs = (data.join(family).groupby('rel_family_id')
+            .sample(1, random_state=random_state).index.get_level_values(0))
+
+    filtered = data.loc[subs]
+    return filtered
