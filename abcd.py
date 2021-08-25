@@ -36,18 +36,18 @@ SCAN_INFO = ['mri_info_manufacturer', 'mri_info_manufacturersmn',
              'mri_info_deviceserialnumber', 'mri_info_softwareversion']
 
 
-def load_mri_data(data_type, path=None, dropna=False,
-                  include_rec=True, exclude_n=True):
+def load_mri_data(data_type, path=None, include_rec=True, dropna=False,
+                  exclude_n=True):
     """
     Load a longitudinally ordered ABCD MRI dataset.
-    * fcon: Gordon network correlations
+    * fcon: Gordon network z-transformed correlations
     * scon: DTI atlas tract fractional anisotropy averages
 
     Params:
         data_type: type of dataset to load
         path: specific ABCD MRI dataset file Path
-        dropna: drop subject if any dataset column is NA
         include_rec: filter by recommended inclusion?
+        dropna: drop subject if any dataset column is NA
         exclude_n: [fcon] ignore None "network"?
 
     Returns:
