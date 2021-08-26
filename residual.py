@@ -3,7 +3,8 @@ import mapply
 from statsmodels.tools import tools as sm_tools
 
 
-def residuals(feature, model=None, regressors=None, groups=None,
+def residuals(feature, model=None, regressors=None,
+              groups=None, exog_re=None,
               return_result=False, **kwargs):
     """
     Regress out variables from a feature with a statsmodels model.
@@ -12,7 +13,8 @@ def residuals(feature, model=None, regressors=None, groups=None,
         feature: Series
         model: statsmodels model (OLS, MixedLM)
         regressors: DataFrame
-        groups: Series of groups for random intercepts (mixed effect)
+        groups: [MixedLM] Series of independent groups
+        exog_re: [MixedLM] DataFrame of random effect covariates
         return_result: return result instead of residuals
         **kwargs: passed to model.fit()
 
@@ -28,23 +30,26 @@ def residuals(feature, model=None, regressors=None, groups=None,
     na_filter = feature.notna()
     endog = feature.loc[na_filter]
     exog = sm_tools.add_constant(pd.get_dummies(
-        regressors.loc[feature.index].loc[na_filter], drop_first=True
+        regressors.loc[feature.index].loc[na_filter],
+        drop_first=True
     ))
     if groups is not None:
         groups = groups.loc[feature.index].loc[na_filter]
+    if exog_re is not None:
+        exog_re = exog_re.loc[feature.index].loc[na_filter]
 
-    result = model(endog, exog, groups=groups).fit(**kwargs)
+    # fit
+    result = model(endog, exog, groups=groups, exog_re=exog_re).fit(**kwargs)
+    if return_result:
+        return result
 
     resid = result.resid.reindex(feature.index)
     resid.name = feature.name
-
-    if return_result:
-        return result
     return resid
 
 
-def residualize(data, model, confounds,
-                return_results=False, n_procs=1, **kwargs):
+def residualize(data, model, confounds, return_results=False,
+                n_procs=1, progressbar=False, **kwargs):
     """
     Regress out confounds from data with a statsmodels model.
     Only the subset of data with matching confounds are processed.
@@ -55,7 +60,8 @@ def residualize(data, model, confounds,
         confounds: DataFrame
         return_results: return results instead of residuals
         n_procs: number of processes for parallelization
-        **kwargs: passed to model.fit()
+        progressbar: show progress
+        **kwargs: passed to residuals()
 
     Returns:
         resids: (n, features) DataFrame
@@ -68,10 +74,11 @@ def residualize(data, model, confounds,
     confounds = pd.DataFrame(confounds.loc[sample])
     
     if n_procs > 1:
-        mapply.init(n_workers=n_procs, chunk_size=1, progressbar=False)
-        r = data.mapply(residuals, model=model, regressors=confounds,
-                        return_result=return_results)
+        mapply.init(n_workers=n_procs, chunk_size=1, progressbar=progressbar)
+        data_apply = data.mapply
     else:
-        r = data.apply(residuals, model=model, regressors=confounds,
-                       return_result=return_results)
+        data_apply = data.apply
+
+    r = data_apply(residuals, model=model, regressors=confounds,
+                   return_result=return_results, **kwargs)
     return r
