@@ -59,7 +59,7 @@ def residualize(data, model, confounds, return_results=False,
         model: statsmodels model (OLS, MixedLM)
         confounds: DataFrame
         return_results: return results instead of residuals
-        n_procs: number of processes for parallelization
+        n_procs: int number of processes for parallelization
         progressbar: show progress
         **kwargs: passed to residuals()
 

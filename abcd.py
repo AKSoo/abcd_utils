@@ -179,7 +179,7 @@ def filter_siblings(data, random_state=None):
 
     Params:
         data: DataFrame indexed by (subject, event)
-        random_state: random seed
+        random_state: int random seed
 
     returns:
         filtered: DataFrame indexed by (subject, event)
