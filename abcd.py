@@ -7,13 +7,13 @@ OUT_PATH = Path('outputs')
 INPUTS = {
     'fcon': 'abcd_betnet02.tsv',
     'scon': 'abcd_dti_p101.tsv',
+    'sconfull': 'abcd_dmdtifp101.tsv',
     'imgincl': 'abcd_imgincl01.tsv',
     'mri': 'abcd_mri01.tsv'
 }
 INDEX = ['src_subject_id', 'eventname']
 EVENTS = ['baseline_year_1_arm_1', '2_year_follow_up_y_arm_1']
 
-FCON_TEMPLATE = 'rsfmri_c_ngd_{0}_ngd_{1}'
 FCON = {
     'ad': 'auditory',
     'cgc': 'cingulo-opercular',
@@ -30,7 +30,11 @@ FCON = {
     'vs': 'visual'
 }
 
-SCON_TEMPLATE = 'dmri_dtifa_fiberat_{0}'
+def fcon_colname(a, b):
+    return f'rsfmri_c_ngd_{a}_ngd_{b}'
+
+def scon_colname(a, metric='fa'):
+    return f'dmri_dti{metric}_fiberat_{a}'
 
 SCAN_INFO = ['mri_info_manufacturer', 'mri_info_manufacturersmn',
              'mri_info_deviceserialnumber', 'mri_info_softwareversion']
@@ -76,11 +80,11 @@ def load_mri_data(data_type, path=None, include_rec=True, dropna=False,
         columns = []
         for i in range(len(fcon_codes)):
             for j in range(i+1):
-                columns.append(FCON_TEMPLATE.format(fcon_codes[i], fcon_codes[j]))
+                columns.append(fcon_colname(fcon_codes[i], fcon_codes[j]))
 
         extra_columns = {'rsfmri_c_ngd_meanmotion': 'meanmotion'}
     elif data_type == 'scon':
-        columns = data.columns.str.startswith(SCON_TEMPLATE.format(''))
+        columns = data.columns.str.startswith(scon_colname(''))
 
         extra_columns = {'dmri_dti_meanmotion': 'meanmotion'}
     else:
@@ -136,7 +140,7 @@ def get_scon_dict():
         scon_dict: dict with (code, description) for each tract
     """
     dti_labels = pd.read_csv(PATH / INPUTS['scon'], sep='\t', nrows=1)
-    code_start = SCON_TEMPLATE.format('')
+    code_start = scon_colname('')
     description_starts = ('Average fractional anisotropy within ', 'DTI atlas tract ')
 
     scon_labels = dti_labels.loc[0, dti_labels.columns.str.startswith(code_start)]
