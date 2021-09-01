@@ -41,18 +41,20 @@ SCAN_INFO = ['mri_info_manufacturer', 'mri_info_manufacturersmn',
 
 
 def load_mri_data(data_type, path=None, include_rec=True, dropna=False,
-                  exclude_n=True):
+                  fcon_exclude_n=True, scon_metrics=['fa']):
     """
     Load a longitudinally ordered ABCD MRI dataset.
     * fcon: Gordon network z-transformed correlations
-    * scon: DTI atlas tract fractional anisotropy averages
+    * scon: DTI atlas tract metrics
+    * sconfull: full shell DTI atlas tract metrics
 
     Params:
         data_type: type of dataset to load
-        path: specific ABCD MRI dataset file Path
+        path: specific dataset file Path
         include_rec: filter by recommended inclusion?
-        dropna: drop subject if any dataset column is NA
-        exclude_n: [fcon] ignore None "network"?
+        dropna: drop subject with missing data?
+        fcon_exclude_n: [fcon] ignore None "network"?
+        scon_metrics: [scon] list of 'fa' and/or 'md'
 
     Returns:
         dataset: DataFrame indexed and sorted by (subject, event)
@@ -74,7 +76,7 @@ def load_mri_data(data_type, path=None, include_rec=True, dropna=False,
     # columns
     if data_type == 'fcon':
         fcon_codes = list(FCON.keys())
-        if exclude_n:
+        if fcon_exclude_n:
             fcon_codes.remove('n')
 
         columns = []
@@ -83,12 +85,14 @@ def load_mri_data(data_type, path=None, include_rec=True, dropna=False,
                 columns.append(fcon_colname(fcon_codes[i], fcon_codes[j]))
 
         extra_columns = {'rsfmri_c_ngd_meanmotion': 'meanmotion'}
-    elif data_type == 'scon':
-        columns = data.columns.str.startswith(scon_colname(''))
+    elif data_type.startswith('scon'):
+        columns = False
+        for m in scon_metrics:
+            columns = columns | data.columns.str.startswith(scon_colname('', metric=m))
 
         extra_columns = {'dmri_dti_meanmotion': 'meanmotion'}
     else:
-        raise ValueError('Cannot load ' + data_type)
+        raise ValueError(f'Cannot load {data_type}')
 
     data_cols = data.loc[:, columns]
 
@@ -102,10 +106,10 @@ def load_mri_data(data_type, path=None, include_rec=True, dropna=False,
 
         if data_type == 'fcon':
             inclusion = imgincl.loc[imgincl['imgincl_rsfmri_include'] == 1].index
-        elif data_type == 'scon':
+        elif data_type.startswith('scon'):
             inclusion = imgincl.loc[imgincl['imgincl_dmri_include'] == 1].index
         else:
-            raise ValueError('Cannot load ' + data_type)
+            raise ValueError(f'No inclusion for {data_type}')
 
         included = data_cols.loc[data_cols.index.intersection(inclusion), :]
     else:
@@ -132,24 +136,23 @@ def load_mri_data(data_type, path=None, include_rec=True, dropna=False,
     return dataset, extra
 
 
-def get_scon_dict():
+def get_scon_descriptions():
     """
-    Builds and returns a dict of DTI atlas tract descriptions.
+    Get DTI atlas tract descriptions.
 
     Returns:
-        scon_dict: dict with (code, description) for each tract
+        scon_descs: Series of (code, description) for each tract
     """
-    dti_labels = pd.read_csv(PATH / INPUTS['scon'], sep='\t', nrows=1)
-    code_start = scon_colname('')
-    description_starts = ('Average fractional anisotropy within ', 'DTI atlas tract ')
+    descs = pd.read_csv(PATH / INPUTS['scon'], sep='\t', nrows=1).iloc[0]
+    col_start = scon_colname('')
+    desc_starts = ('Average fractional anisotropy within ', 'DTI atlas tract ')
 
-    scon_labels = dti_labels.loc[0, dti_labels.columns.str.startswith(code_start)]
-    codes = scon_labels.index.str.replace(code_start, '')
-    descriptions = (scon_labels.str.replace(description_starts[0], '')
-                    .str.replace(description_starts[1], '').values)
+    scon_descs = descs.loc[descs.index.str.startswith(col_start)]
+    scon_descs = scon_descs.rename(lambda s: s.replace(col_start, ''))
+    scon_descs = (scon_descs.str.replace(desc_starts[0], '')
+                  .str.replace(desc_starts[1], ''))
 
-    scon_dict = dict(zip(codes, descriptions))
-    return scon_dict
+    return scon_descs
 
 
 def load_covariates(covars=None, simple_race=False):
