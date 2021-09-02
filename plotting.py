@@ -34,8 +34,8 @@ def plot_fcon(fcon, labels=None, ax=None, **kwargs):
 
     Params:
         fcon: (n*(n+1)/2,) ndarray
-        labels: list of n network labels. Default uses abcd.FCON keys
-            without None and 'RST' for retrosplenial temporal
+        labels: list of n network labels. Default uses abcd.FCON indices
+            without None and 'RST' for retrosplenial temporal.
         ax: Axes to plot on. If None, creates a new one.
         **kwargs: Arguments for seaborn.heatmap
 
@@ -46,14 +46,8 @@ def plot_fcon(fcon, labels=None, ax=None, **kwargs):
         fig, ax = plt.subplots()
 
     if labels is None:
-        labels = []
-        for code in abcd.FCON.keys():
-            if code == 'n':
-                continue
-            elif code == 'rspltp':
-                labels.append('RST')
-            else:
-                labels.append(code.upper())
+        labels = (abcd.FCON.drop('n').rename({'rspltp': 'rst'})
+                  .index.str.upper())
 
     fcon2d = pd.DataFrame(unflatten_tril(fcon), index=labels, columns=labels)
 
