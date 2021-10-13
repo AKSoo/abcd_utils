@@ -5,11 +5,11 @@ idx = pd.IndexSlice
 PATH = Path('inputs/ABCD')
 OUT_PATH = Path('outputs')
 INPUTS = {
-    'fcon': 'abcd_betnet02.tsv',
-    'scon': 'abcd_dti_p101.tsv',
-    'sconfull': 'abcd_dmdtifp101.tsv',
-    'imgincl': 'abcd_imgincl01.tsv',
-    'mri': 'abcd_mri01.tsv'
+    'fcon': 'abcd_betnet02.txt',
+    'scon': 'abcd_dti_p101.txt',
+    'sconfull': 'abcd_dmdtifp101.txt',
+    'imgincl': 'abcd_imgincl01.txt',
+    'mri': 'abcd_mri01.txt'
 }
 INDEX = ['src_subject_id', 'eventname']
 EVENTS = ['baseline_year_1_arm_1', '2_year_follow_up_y_arm_1']
