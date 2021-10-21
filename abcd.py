@@ -9,7 +9,8 @@ INPUTS = {
     'scon': 'abcd_dti_p101.txt',
     'sconfull': 'abcd_dmdtifp101.txt',
     'imgincl': 'abcd_imgincl01.txt',
-    'mri': 'abcd_mri01.txt'
+    'mri': 'abcd_mri01.txt',
+    'covar': 'outputs/abcd_covariates.csv'
 }
 INDEX = ['src_subject_id', 'eventname']
 EVENTS = ['baseline_year_1_arm_1', '2_year_follow_up_y_arm_1']
@@ -222,7 +223,7 @@ def load_covariates(covars=None, simple_race=False):
     Returns:
         covariates: DataFrame indexed by (subject, event)
     """
-    covariates = pd.read_csv(OUT_PATH / 'abcd_covariates.csv', index_col=INDEX)
+    covariates = pd.read_csv(PATH / INPUTS['covar'], index_col=INDEX)
     if covars is not None:
         covars = covariates[covars].copy()
     else:
