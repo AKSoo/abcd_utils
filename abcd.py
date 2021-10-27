@@ -3,7 +3,6 @@ import pandas as pd
 idx = pd.IndexSlice
 
 PATH = Path('inputs/ABCD')
-OUT_PATH = Path('outputs')
 INPUTS = {
     'fcon': 'abcd_betnet02.txt',
     'scon': 'abcd_dti_p101.txt',
