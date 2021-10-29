@@ -31,13 +31,15 @@ def _allele_match(ref, alts, a1, a2, len_match=None):
     if alts is None:
         alts = ()
 
-    if len_match is not None:
-        ref = ref[:len_match]
-        alts = [a[:len_match] for a in alts]
-        a1 = a1[:len_match]
-        a2 = a2[:len_match]
+    if len_match is None:
+        return a1 == ref and a2 in alts
 
-    return a1 == ref and a2 in alts
+    a1, a2 = a1[:len_match], a2[:len_match]
+    if ref.startswith(a1):
+        for alt in alts:
+            if alt.startswith(a2):
+                return True
+    return False
 
 def find_rs(ch, bp, a1, a2, snps=None,
             swap=False, tags=None, len_match=None):
@@ -56,14 +58,16 @@ def find_rs(ch, bp, a1, a2, snps=None,
         tags: str's, multiple matches filter tags.
             If set, tags must be a subset.
             If list, each tag is filtered in order.
-        len_match: int, # of allele bp's to match. Default is exact (None).
-            If multiple matches, fall back to exact match.
+        len_match: int, length of long alleles. Long alleles are compared by
+            len_match. If multiple matches, fall back to exact match.
 
     Returns:
         rs_ids: list of matched SNPs' rs IDs
     """
     if snps is None:
         snps = load_snps()
+    if len(a1) < len_match and len(a2) < len_match:
+        len_match = None
 
     matches = []
 
@@ -80,7 +84,7 @@ def find_rs(ch, bp, a1, a2, snps=None,
             if _allele_match(rec.ref, rec.alts, a2, a1, len_match):
                 matches.append(rec)
 
-    # if multiple matches, try more exact
+    # if multiple matches, try exact and filter
     if len(matches) > 1 and len_match is not None:
         rematch = [rec for rec in matches
                    if _allele_match(rec.ref, rec.alts, a1, a2)]
