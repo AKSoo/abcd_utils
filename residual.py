@@ -1,5 +1,4 @@
 import pandas as pd
-import mapply
 from statsmodels.tools import tools as sm_tools
 
 
@@ -60,7 +59,7 @@ def residualize(data, model, confounds, return_results=False,
         confounds: DataFrame
         return_results: return results instead of residuals
         n_procs: int number of processes for parallelization
-        progressbar: show progress
+        progressbar: show progress when parallel
         **kwargs: passed to residuals()
 
     Returns:
@@ -74,6 +73,7 @@ def residualize(data, model, confounds, return_results=False,
     confounds = pd.DataFrame(confounds.loc[sample])
     
     if n_procs > 1:
+        import mapply
         mapply.init(n_workers=n_procs, chunk_size=1, progressbar=progressbar)
         data_apply = data.mapply
     else:
