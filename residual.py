@@ -38,7 +38,11 @@ def residuals(feature, model=None, regressors=None,
         exog_re = exog_re.loc[feature.index].loc[na_filter]
 
     # fit
-    result = model(endog, exog, groups=groups, exog_re=exog_re).fit(**kwargs)
+    if groups is None:
+        result = model(endog, exog).fit(**kwargs)
+    else:
+        result = model(endog, exog, groups, exog_re=exog_re).fit(**kwargs)
+
     if return_result:
         return result
 
@@ -71,7 +75,7 @@ def residualize(data, model, confounds, return_results=False,
     # convert Series to DataFrame
     data = pd.DataFrame(data.loc[sample])
     confounds = pd.DataFrame(confounds.loc[sample])
-    
+
     if n_procs > 1:
         import mapply
         mapply.init(n_workers=n_procs, chunk_size=1, progressbar=progressbar)
