@@ -58,11 +58,10 @@ def load_fcon(path=None, include_rec=True, dropna=True,
             * scan info
     """
     if path is not None:
-        data = pd.read_csv(path, sep=None, engine='python',
-                           index_col=INDEX)
+        data = pd.read_table(path, sep=None, engine='python', index_col=INDEX)
     else:
-        data = pd.read_csv(PATH / INPUTS['fcon'], sep='\t',
-                           skiprows=[1], index_col=INDEX)
+        data = pd.read_table(PATH / INPUTS['fcon'],
+                             skiprows=[1], index_col=INDEX)
 
     # columns
     fcon_codes = FCON.index
@@ -106,15 +105,13 @@ def load_scon(path=None, include_rec=True, dropna=True,
             * scan info
     """
     if path is not None:
-        data = pd.read_csv(path, sep=None, engine='python',
-                           index_col=INDEX)
+        data = pd.read_table(path, sep=None, engine='python', index_col=INDEX)
     else:
         if full:
             path = PATH / INPUTS['sconfull']
         else:
             path = PATH / INPUTS['scon']
-        data = pd.read_csv(path, sep='\t',
-                           skiprows=[1], index_col=INDEX)
+        data = pd.read_table(path, skiprows=[1], index_col=INDEX)
 
     # columns
     if full:
@@ -139,8 +136,8 @@ def load_scon(path=None, include_rec=True, dropna=True,
 
 def _rec_inclusion(index, data_type):
     """recommended inclusion on index"""
-    imgincl = pd.read_csv(PATH / INPUTS['imgincl'], sep='\t',
-                          skiprows=[1], index_col=INDEX)
+    imgincl = pd.read_table(PATH / INPUTS['imgincl'],
+                            skiprows=[1], index_col=INDEX)
     imgincl = imgincl.dropna(subset=['visit'])
     # NOTE has identical duplicate rows for whatever reason
     imgincl = imgincl.loc[~imgincl.index.duplicated(keep='last')]
@@ -163,9 +160,9 @@ def _longitudinal(data):
 
 def _extra_data(index, data_type):
     """extra info for index"""
-    mri = pd.read_csv(PATH / INPUTS['mri'], sep='\t',
-                      skiprows=[1], index_col=INDEX)
-    # NOTE has empty duplicate rows for whatever reason
+    mri = pd.read_table(PATH / INPUTS['mri'],
+                        skiprows=[1], index_col=INDEX)
+    # NOTE has empty duplicate rows for some reason
     mri = mri.dropna(how='all', subset=SCAN_INFO)
 
     if data_type == 'fcon':
@@ -173,17 +170,18 @@ def _extra_data(index, data_type):
     elif data_type == 'scon':
         columns = {'dmri_dti_meanmotion': 'meanmotion'}
 
-    data = pd.read_csv(PATH / INPUTS[data_type], sep='\t',
-                       skiprows=[1], index_col=INDEX)
+    data = pd.read_table(PATH / INPUTS[data_type],
+                         skiprows=[1], index_col=INDEX)
     data = data.loc[index, columns.keys()].rename(columns=columns)
 
-    return data.join(mri[SCAN_INFO])
+    # NOTE some baseline mri info missing
+    return data.join(mri[SCAN_INFO]).fillna(method='bfill')
 
 
 def _nums_sconfull():
     """nums to names for sconfull columns (match by description)"""
-    nums_descs = pd.read_csv(PATH / INPUTS['sconfull'], sep='\t', nrows=1).iloc[0]
-    scon_descs = pd.read_csv(PATH / INPUTS['scon'], sep='\t', nrows=1).iloc[0]
+    nums_descs = pd.read_table(PATH / INPUTS['sconfull'], nrows=1).iloc[0]
+    scon_descs = pd.read_table(PATH / INPUTS['scon'], nrows=1).iloc[0]
     descs_scon = pd.Series(scon_descs.index, index=scon_descs)
     nums_scon = nums_descs.map(descs_scon).dropna()
 
@@ -198,7 +196,7 @@ def get_scon_descriptions():
     Returns:
         scon_descs: Series of (code, description) for each tract
     """
-    descs = pd.read_csv(PATH / INPUTS['scon'], sep='\t', nrows=1).iloc[0]
+    descs = pd.read_table(PATH / INPUTS['scon'], nrows=1).iloc[0]
     col_start = scon_colname('')
     desc_starts = ('Average fractional anisotropy within ', 'DTI atlas tract ')
 
