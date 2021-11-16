@@ -39,6 +39,13 @@ def scon_colname(a, full=False, metric='fa'):
 SCAN_INFO = ['mri_info_manufacturer', 'mri_info_manufacturersmn',
              'mri_info_deviceserialnumber', 'mri_info_softwareversion']
 
+_LOAD_COLS = {
+    'fcon': {'imgincl': 'imgincl_rsfmri_include',
+             'meanmotion': 'rsfmri_c_ngd_meanmotion'},
+    'scon': {'imgincl': 'imgincl_dmri_include',
+             'meanmotion': 'dmri_dti_meanmotion'}
+}
+
 
 def load_fcon(path=None, include_rec=True, dropna=True,
               exclude_n=True):
@@ -77,12 +84,12 @@ def load_fcon(path=None, include_rec=True, dropna=True,
 
     # rows
     if include_rec:
-        data_cols = data_cols.loc[_rec_inclusion(data_cols.index, 'fcon'), :]
+        data_cols = _rec_inclusion(data_cols, 'fcon')
     if dropna:
         data_cols = data_cols.dropna()
 
     dataset = _longitudinal(data_cols)
-    extra = _extra_data(dataset.index, 'fcon')
+    extra = _extra_data(dataset, 'fcon')
     return dataset, extra
 
 
@@ -125,57 +132,40 @@ def load_scon(path=None, include_rec=True, dropna=True,
 
     # rows
     if include_rec:
-        data_cols = data_cols.loc[_rec_inclusion(data_cols.index, 'scon'), :]
+        data_cols = _rec_inclusion(data_cols, 'scon')
     if dropna:
         data_cols = data_cols.dropna()
 
     dataset = _longitudinal(data_cols)
-    extra = _extra_data(dataset.index, 'scon')
+    extra = _extra_data(dataset, 'scon')
     return dataset, extra
 
 
-def _rec_inclusion(index, data_type):
+def _rec_inclusion(data, data_type):
     """recommended inclusion on index"""
     imgincl = pd.read_table(PATH / INPUTS['imgincl'],
                             skiprows=[1], index_col=INDEX)
-    imgincl = imgincl.dropna(subset=['visit'])
-    # NOTE has identical duplicate rows for whatever reason
-    imgincl = imgincl.loc[~imgincl.index.duplicated(keep='last')]
-
-    if data_type == 'fcon':
-        inclusion = imgincl.loc[imgincl['imgincl_rsfmri_include'] == 1].index
-    elif data_type == 'scon':
-        inclusion = imgincl.loc[imgincl['imgincl_dmri_include'] == 1].index
-
-    return index.intersection(inclusion)
+    include = imgincl.loc[imgincl[_LOAD_COLS[data_type]['imgincl']] == 1].index
+    return data.loc[data.index.intersection(include), :]
 
 
 def _longitudinal(data):
     """longitudinal only and ordered"""
     subs_counts = data.groupby(level=0).size()
     subs_long = subs_counts.index[subs_counts == len(EVENTS)]
-
     return data.loc[idx[subs_long, EVENTS], :]
 
 
-def _extra_data(index, data_type):
+def _extra_data(data, data_type):
     """extra info for index"""
     mri = pd.read_table(PATH / INPUTS['mri'],
                         skiprows=[1], index_col=INDEX)
-    # NOTE has empty duplicate rows for some reason
-    mri = mri.dropna(how='all', subset=SCAN_INFO)
+    extra = pd.read_table(PATH / INPUTS[data_type],
+                          skiprows=[1], index_col=INDEX)
 
-    if data_type == 'fcon':
-        columns = {'rsfmri_c_ngd_meanmotion': 'meanmotion'}
-    elif data_type == 'scon':
-        columns = {'dmri_dti_meanmotion': 'meanmotion'}
-
-    data = pd.read_table(PATH / INPUTS[data_type],
-                         skiprows=[1], index_col=INDEX)
-    data = data.loc[index, columns.keys()].rename(columns=columns)
-
-    # NOTE some baseline mri info missing
-    return data.join(mri[SCAN_INFO]).fillna(method='bfill')
+    columns = {_LOAD_COLS[data_type]['meanmotion']: 'meanmotion'}
+    extra = extra.loc[data.index, columns.keys()].rename(columns=columns)
+    return extra.join(mri[SCAN_INFO])
 
 
 def _nums_sconfull():
