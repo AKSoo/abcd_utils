@@ -6,10 +6,6 @@ PRS_DIR = Path('outputs/prs')
 
 BIM_COLS = ['CHR', 'SNP', 'POS', 'BP', 'A1', 'A2']
 
-PHENOTYPES = {
-    'ASD': {'n': 46350}
-}
-
 
 def reference_ids(genes, reference, swap=False):
     """
@@ -51,7 +47,7 @@ def load_prscores(pheno):
     Load polygenic risk scores.
 
     Params:
-        pheno: A key in PHENOTYPES
+        pheno: str, phenotype ID
 
     Returns:
         scores: DataFrame indexed by subject
