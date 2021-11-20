@@ -9,7 +9,7 @@ BIM_COLS = ['CHR', 'SNP', 'POS', 'BP', 'A1', 'A2']
 
 def reference_ids(genes, reference, swap=False):
     """
-    Get SNP IDs from a reference for given genes.
+    Get SNP IDs from a reference for given genes. No matches are None.
     Matches
         CHR: chromosome (no X), BP: base pair
         A1: minor allele, A2: major allele
@@ -33,7 +33,7 @@ def reference_ids(genes, reference, swap=False):
                 return match['SNP']
             if swap and match['A1'] == row['A2'] and match['A2'] == row['A1']:
                 return match['SNP'][::-1]
-        return row['SNP']
+        return None
 
     ids = genes.apply(query_id, axis=1)
     return ids
