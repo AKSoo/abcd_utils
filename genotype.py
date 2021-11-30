@@ -53,7 +53,7 @@ def load_prscores(pheno):
         scores: DataFrame indexed by subject
     """
     scores_dir = PRS_DIR / pheno / 'scores'
-    cols_dict = {'IID': None, 'SCORESUM': pheno}
+    cols_dict = {'IID': 'subject', 'SCORESUM': pheno}
 
     scores = 0
     for score_path in scores_dir.glob('*.profile'):
