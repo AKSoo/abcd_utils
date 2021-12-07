@@ -1,5 +1,5 @@
 from pathlib import Path
-from itertools import product
+from itertools import chain, product
 import pandas as pd
 idx = pd.IndexSlice
 
@@ -140,18 +140,25 @@ def _longitudinal(data):
 
 
 ## PHENOTYPES
-
 PHENOS = {
-    'ASD': {'screen0': ['scrn_asd'], 'mhp0': ['ssrs_p_ss_sum'],
-            'ksad0': ['ksads_18_903_p'], 'ksad5': ['ksads_18_903_t']},
-    'ADHD': {'cbcls0': ['cbcl_scr_syn_attention_r'],
-             'ksad0': [f"ksads_14_{i}_p" for i in range(853, 857)],
-             'ksad5': [f"ksads_14_{i}_t" for i in range(853, 857)]},
+    'ASD': {'screen0': ['scrn_asd'], 'mhp0': ['ssrs_p_ss_sum']},
+    'ADHD': {'cbcls0': ['cbcl_scr_syn_attention_r']},
     'BIP': {'mhp0': ['pgbi_p_ss_score'], 'mhy0': ['sup_y_ss_sum']},
-    'ANX': {},
-    'MDD': {},
+    'ANX': {'cbcls0': ['cbcl_scr_syn_anxdep_r', 'cbcl_scr_dsm5_anxdisord_r']},
+    'MDD': {'cbcls0': ['cbcl_scr_syn_anxdep_r', 'cbcl_scr_syn_withdep_r',
+                       'cbcl_scr_dsm5_depress_r']},
     'SCZ': {'mhy0': ['pps_y_ss_number']},
     'ALZ': {}
+}
+KSADS = {
+    'ASD': ['ksads_18_903'],
+    'ADHD': [f"ksads_14_{i}" for i in range(853, 857)],
+    'BIP': [f"ksads_2_{i}" for i in range(830, 840)],
+    'ANX': ['ksads_5_857', 'ksads_5_858', 'ksads_6_859', 'ksads_6_860',
+            'ksads_7_861', 'ksads_7_862', 'ksads_8_863', 'ksads_8_864',
+            'ksads_9_867', 'ksads_9_868', 'ksads_10_869', 'ksads_10_870'],
+    'MDD': [f"ksads_1_{i}" for i in range(840, 848)],
+    'SCZ': [f"ksads_4_{i}" for i in chain(range(826, 830), range(849, 853))]
 }
 
 def load_pheno(pheno, descriptions=False, interval=None, **kwargs):
@@ -169,9 +176,17 @@ def load_pheno(pheno, descriptions=False, interval=None, **kwargs):
     """
     if pheno not in PHENOS:
         raise ValueError(f"Invalid phenotype: {pheno}")
+    table_cols = PHENOS[pheno].copy()
+
+    if pheno in KSADS:
+        table_cols['ksad0'] = [col + '_p' for col in KSADS[pheno]]
+        table_cols['ksad5'] = [col + '_t' for col in KSADS[pheno]]
 
     table = pd.concat([load(table, descriptions=descriptions)[cols]
-                       for table, cols in PHENOS[pheno].items()], axis=1)
+                       for table, cols in table_cols.items()], axis=1)
+
+    # NA: 555, 777, 888, 999
+    table = table.where(table < 555)
 
     if descriptions or not interval:
         dataset = table.sort_index()
@@ -208,7 +223,6 @@ def scon_colname(a, full=False, metric='fa'):
 
 SCAN_INFO = ['mri_info_manufacturer', 'mri_info_manufacturersmn',
              'mri_info_deviceserialnumber', 'mri_info_softwareversion']
-
 _LOAD_COLS = {
     'fcon': {'imgincl': 'imgincl_rsfmri_include',
              'meanmotion': 'rsfmri_c_ngd_meanmotion'},
