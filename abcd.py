@@ -4,18 +4,8 @@ import pandas as pd
 idx = pd.IndexSlice
 
 PATH = Path('inputs/ABCD')
-INPUTS = {
-    'fcon': 'betnet0',
-    'scon': 'dti_p1',
-    'sconfull': 'dmdtifp1',
-    'imgincl': 'imgincl0',
-    'mri': 'mri0',
-    'covar': Path('outputs/abcd_covariates.csv')
-}
 
 def _inputpath(name):
-    if name in INPUTS:
-        name = INPUTS[name]
     if isinstance(name, Path):
         return name
 
@@ -64,17 +54,16 @@ def load(name, descriptions=False):
     Load a table of ABCD data indexed by (subject, event).
 
     Params:
-        name: str. If not an INPUTS key, searches PATH.
+        name: str or Path. If str, searches PATH.
         descriptions: Load column descriptions instead of data
 
     Returns:
         table: DataFrame
     """
     path = _inputpath(name)
-    if descriptions:
-        table = pd.read_table(path, nrows=1)
-    else:
-        table = pd.read_table(path, skiprows=[1])
+    table = pd.read_table(path, sep=',' if '.csv' in path.suffixes else '\t',
+                          nrows=1 if descriptions else None,
+                          skiprows=None if descriptions else [1])
 
     # drop useless cols
     ignore = ['collection_id', 'dataset_id', 'collection_title']
@@ -83,6 +72,7 @@ def load(name, descriptions=False):
 
     if descriptions:
         table = _setindex(table).reset_index(drop=True)
+        table = table.replace(' +', ' ', regex=True) # whitespace fix...
     else:
         table = _eventcode(_setindex(table))
     return table
@@ -132,14 +122,15 @@ def longitudinal(table, interval, aggregate=False, dropna=False):
     dataset = _longitudinal(table)
     return dataset
 
-def _longitudinal(data):
-    num_events = data.index.get_level_values('event').nunique()
-    sub_counts = data.groupby(level=0).size()
+def _longitudinal(table):
+    num_events = table.index.get_level_values('event').nunique()
+    sub_counts = table.groupby(level=0).size()
     subs_long = sub_counts.index[sub_counts == num_events]
-    return data.loc[subs_long]
+    return table.loc[subs_long]
 
 
 ## PHENOTYPES
+
 PHENOS = {
     'ASD': {'screen0': ['scrn_asd'], 'mhp0': ['ssrs_p_ss_sum']},
     'ADHD': {'cbcls0': ['cbcl_scr_syn_attention_r']},
@@ -148,7 +139,9 @@ PHENOS = {
     'MDD': {'cbcls0': ['cbcl_scr_syn_anxdep_r', 'cbcl_scr_syn_withdep_r',
                        'cbcl_scr_dsm5_depress_r']},
     'SCZ': {'mhy0': ['pps_y_ss_number']},
-    'ALZ': {}
+    'ALZ': {'tbss0': [f"nihtbx_{comp}_{corr}" for comp, corr in
+                      product(['fluidcomp', 'cryst', 'totalcomp'],
+                              ['uncorrected', 'agecorrected', 'fc'])]}
 }
 KSADS = {
     'ASD': ['ksads_18_903'],
@@ -196,8 +189,19 @@ def load_pheno(pheno, descriptions=False, interval=None, **kwargs):
     return dataset
 
 
-#TODO
-## IMAGING
+## IMAGING TODO
+
+IMAGING = {
+    'fcon': 'betnet0',
+    'scon': 'dti_p1',
+    'sconfull': 'dmdtifp1',
+    'include': ('imgincl0', {'imgincl_rsfmri_include': 'fcon',
+                             'imgincl_dmri_include': 'scon'}),
+    'mri': ('mri0', {'mri_info_manufacturer': 'manufacturer',
+                     'mri_info_manufacturersmn': 'model',
+                     'mri_info_deviceserialnumber': 'device',
+                     'mri_info_softwareversion': 'software'})
+}
 
 FCON = pd.Series({
     'ad': 'auditory',
@@ -221,15 +225,6 @@ def fcon_colname(a, b):
 def scon_colname(a, full=False, metric='fa'):
     return f"dmri_dti{'full' if full else ''}{metric}_fiberat_{a}"
 
-SCAN_INFO = ['mri_info_manufacturer', 'mri_info_manufacturersmn',
-             'mri_info_deviceserialnumber', 'mri_info_softwareversion']
-_LOAD_COLS = {
-    'fcon': {'imgincl': 'imgincl_rsfmri_include',
-             'meanmotion': 'rsfmri_c_ngd_meanmotion'},
-    'scon': {'imgincl': 'imgincl_dmri_include',
-             'meanmotion': 'dmri_dti_meanmotion'}
-}
-
 def load_fcon(path=None, include_rec=True, dropna=True,
               exclude_n=True):
     """
@@ -243,15 +238,9 @@ def load_fcon(path=None, include_rec=True, dropna=True,
 
     Returns:
         dataset: DataFrame indexed and sorted by (subject, event)
-        extra: DataFrame of relevant supplementary data
-            * mean motion
-            * scan info
+        scan_info: DataFrame of MRI scan info, mean motion
     """
-    if path is not None:
-        data = pd.read_table(path, sep=None, engine='python', index_col=INDEX)
-    else:
-        data = pd.read_table(PATH / INPUTS['fcon'],
-                             skiprows=[1], index_col=INDEX)
+    data = load(IMAGING['fcon'] if path is None else path)
 
     # columns
     fcon_codes = FCON.index
@@ -271,12 +260,12 @@ def load_fcon(path=None, include_rec=True, dropna=True,
     if dropna:
         data_cols = data_cols.dropna()
 
-    dataset = _longitudinal(data_cols)
-    extra = _extra_data(dataset, 'fcon')
-    return dataset, extra
+    dataset = _longitudinal(data_cols).sort_index()
+    scan_info = _scan_info(dataset, 'fcon')
+    return dataset, scan_info
 
 def load_scon(path=None, include_rec=True, dropna=True,
-              metrics=['fa'], full=False):
+              full=False, metrics=['fa']):
     """
     Load a longitudinally ordered ABCD structural connectivity dataset.
     
@@ -284,23 +273,15 @@ def load_scon(path=None, include_rec=True, dropna=True,
         path: Path. If given, load data from a specific file.
         include_rec: filter by recommended inclusion?
         dropna: drop subjects with missing data?
-        metrics: list of DTI metrics (fa, md)
         full: full shell DTI data?
+        metrics: list of DTI metrics (fa, md)
 
     Returns:
         dataset: DataFrame indexed and sorted by (subject, event)
-        extra: DataFrame of relevant supplementary data
-            * mean motion
-            * scan info
+        scan_info: DataFrame of MRI scan info, mean motion
     """
-    if path is not None:
-        data = pd.read_table(path, sep=None, engine='python', index_col=INDEX)
-    else:
-        if full:
-            path = PATH / INPUTS['sconfull']
-        else:
-            path = PATH / INPUTS['scon']
-        data = pd.read_table(path, skiprows=[1], index_col=INDEX)
+    data = load(IMAGING['sconfull' if full else 'scon']
+                if path is None else path)
 
     # columns
     if full:
@@ -318,32 +299,29 @@ def load_scon(path=None, include_rec=True, dropna=True,
     if dropna:
         data_cols = data_cols.dropna()
 
-    dataset = _longitudinal(data_cols)
-    extra = _extra_data(dataset, 'scon')
-    return dataset, extra
+    dataset = _longitudinal(data_cols).sort_index()
+    scan_info = _scan_info(dataset, 'scon')
+    return dataset, scan_info
 
 def _rec_inclusion(data, data_type):
     """recommended inclusion on index"""
-    imgincl = pd.read_table(PATH / INPUTS['imgincl'],
-                            skiprows=[1], index_col=INDEX)
-    include = imgincl.loc[imgincl[_LOAD_COLS[data_type]['imgincl']] == 1].index
-    return data.loc[data.index.intersection(include), :]
+    name, columns = IMAGING['include']
+    include = load(name)[columns.keys()].rename(columns=columns)
+    included = include.loc[include[data_type] == 1].index
+    return data.loc[data.index.intersection(included), :]
 
-def _extra_data(data, data_type):
+def _scan_info(data, data_type):
     """extra info for index"""
-    mri = pd.read_table(PATH / INPUTS['mri'],
-                        skiprows=[1], index_col=INDEX)
-    extra = pd.read_table(PATH / INPUTS[data_type],
-                          skiprows=[1], index_col=INDEX)
-
-    columns = {_LOAD_COLS[data_type]['meanmotion']: 'meanmotion'}
-    extra = extra.loc[data.index, columns.keys()].rename(columns=columns)
-    return extra.join(mri[SCAN_INFO])
+    name, columns = IMAGING['mri']
+    mri = load(name)[columns.keys()].rename(columns=columns)
+    meanmotion = (load(IMAGING[data_type]).filter(regex='meanmotion$', axis=1)
+                  .squeeze().rename('meanmotion'))
+    return mri.loc[data.index].join(meanmotion)
 
 def _nums_sconfull():
     """nums to names for sconfull columns (match by description)"""
-    nums_descs = pd.read_table(PATH / INPUTS['sconfull'], nrows=1).iloc[0]
-    scon_descs = pd.read_table(PATH / INPUTS['scon'], nrows=1).iloc[0]
+    nums_descs = load(IMAGING['sconfull'], descriptions=True).iloc[0]
+    scon_descs = load(IMAGING['scon'], descriptions=True).iloc[0]
     descs_scon = pd.Series(scon_descs.index, index=scon_descs)
     nums_scon = nums_descs.map(descs_scon).dropna()
 
@@ -357,7 +335,7 @@ def get_scon_descriptions():
     Returns:
         scon_descs: Series of (code, description) for each tract
     """
-    descs = pd.read_table(PATH / INPUTS['scon'], nrows=1).iloc[0]
+    descs = load(IMAGING['scon'], descriptions=True).iloc[0]
     col_start = scon_colname('')
     desc_starts = ('Average fractional anisotropy within ', 'DTI atlas tract ')
 
@@ -365,11 +343,12 @@ def get_scon_descriptions():
     scon_descs = scon_descs.rename(lambda s: s.replace(col_start, ''))
     scon_descs = (scon_descs.str.replace(desc_starts[0], '')
                   .str.replace(desc_starts[1], ''))
-
     return scon_descs
 
 
 ## COVARIATES
+
+COVAR_PATH = PATH / 'outputs' / 'abcd_covariates.csv'
 
 def load_covariates(covars=None, simple_race=False):
     """
@@ -383,7 +362,7 @@ def load_covariates(covars=None, simple_race=False):
     Returns:
         covariates: DataFrame indexed by (subject, event)
     """
-    covariates = pd.read_csv(PATH / INPUTS['covar'], index_col=INDEX)
+    covariates = load(COVAR_PATH)
     if covars is not None:
         covars = covariates[covars].copy()
     else:
@@ -392,8 +371,7 @@ def load_covariates(covars=None, simple_race=False):
     if simple_race:
         covars['race'] = (covariates['race.6level']
                           .replace('AIAN/NHPI', 'Other').fillna('Other'))
-
-    return covars
+    return covars.sort_index()
 
 def filter_siblings(data, random_state=None):
     """
@@ -408,7 +386,8 @@ def filter_siblings(data, random_state=None):
     """
     family = load_covariates(covars=['rel_family_id'])
     subs = (data.join(family).groupby('rel_family_id')
-            .sample(1, random_state=random_state).index.get_level_values(0))
+            .sample(1, random_state=random_state)
+            .index.get_level_values('subject'))
 
     filtered = data.loc[subs]
     return filtered

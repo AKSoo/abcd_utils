@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from utils import abcd
+from . import abcd
 
 
 def unflatten_tril(flat_tril):
