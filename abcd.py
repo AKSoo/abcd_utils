@@ -350,12 +350,13 @@ def get_scon_descriptions():
 
 COVAR_PATH = PATH / 'outputs' / 'abcd_covariates.csv'
 
-def load_covariates(covars=None, simple_race=False):
+def load_covariates(covars=None, age_year=False, simple_race=False):
     """
     Load ABCD covariates.
 
     Params:
         covars: list of columns to load. If None, all.
+        age_year: Include 'age' in years.
         simple_race: Include simple 'race' covariate with [White, Black,
             Asian, Other, Mixed]. Other includes missing.
 
@@ -368,6 +369,8 @@ def load_covariates(covars=None, simple_race=False):
     else:
         covars = covariates.copy()
 
+    if age_year:
+        covars['age'] = covariates['interview_age'] / 12
     if simple_race:
         covars['race'] = (covariates['race.6level']
                           .replace('AIAN/NHPI', 'Other').fillna('Other'))
