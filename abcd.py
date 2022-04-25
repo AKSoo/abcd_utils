@@ -5,6 +5,7 @@ idx = pd.IndexSlice
 
 PATH = Path('inputs/ABCD')
 
+
 def _inputpath(name):
     if isinstance(name, Path):
         return name
@@ -17,10 +18,12 @@ def _inputpath(name):
                          + ', '.join([p.stem for p in path]))
     return path[0]
 
+
 INDEX = {
     'subject': ['src_subject_id', 'subjectkey'],
     'event': ['eventname', 'visit']
 }
+
 
 def _setindex(table):
     index_cols = None
@@ -36,6 +39,7 @@ def _setindex(table):
     table = table.drop(columns=sum(INDEX.values(), []), errors='ignore')
     return table
 
+
 def _eventcode(table):
     table = table.reset_index()
 
@@ -48,6 +52,7 @@ def _eventcode(table):
 
     table = table.set_index(list(INDEX.keys()))
     return table
+
 
 def load(name, descriptions=False):
     """
@@ -76,6 +81,7 @@ def load(name, descriptions=False):
     else:
         table = _eventcode(_setindex(table))
     return table
+
 
 def longitudinal(table, interval, aggregate=False, dropna=False):
     """
@@ -122,6 +128,7 @@ def longitudinal(table, interval, aggregate=False, dropna=False):
     dataset = _longitudinal(table)
     return dataset
 
+
 def _longitudinal(table):
     num_events = table.index.get_level_values('event').nunique()
     sub_counts = table.groupby(level=0).size()
@@ -129,7 +136,7 @@ def _longitudinal(table):
     return table.loc[subs_long]
 
 
-## PHENOTYPES
+# PHENOTYPES
 
 PHENOS = {
     'ASD': {'screen0': ['scrn_asd'], 'mhp0': ['ssrs_p_ss_sum']},
@@ -139,9 +146,8 @@ PHENOS = {
     'MDD': {'cbcls0': ['cbcl_scr_syn_anxdep_r', 'cbcl_scr_syn_withdep_r',
                        'cbcl_scr_dsm5_depress_r']},
     'SCZ': {'mhy0': ['pps_y_ss_number']},
-    'ALZ': {'tbss0': [f"nihtbx_{comp}_{corr}" for comp, corr in
-                      product(['fluidcomp', 'cryst', 'totalcomp'],
-                              ['uncorrected', 'agecorrected', 'fc'])]}
+    'ALZ': {'tbss0': [f"nihtbx_{comp}_uncorrected" for comp in
+                      ['fluidcomp', 'cryst', 'totalcomp']]}
 }
 KSADS = {
     'ASD': ['ksads_18_903'],
@@ -153,6 +159,7 @@ KSADS = {
     'MDD': [f"ksads_1_{i}" for i in range(840, 848)],
     'SCZ': [f"ksads_4_{i}" for i in chain(range(826, 830), range(849, 853))]
 }
+
 
 def load_pheno(pheno, descriptions=False, interval=None, **kwargs):
     """
@@ -189,7 +196,7 @@ def load_pheno(pheno, descriptions=False, interval=None, **kwargs):
     return dataset
 
 
-## IMAGING TODO
+# IMAGING TODO
 
 IMAGING = {
     'fcon': 'betnet0',
@@ -219,11 +226,14 @@ FCON = pd.Series({
     'vs': 'visual'
 })
 
+
 def fcon_colname(a, b):
     return f"rsfmri_c_ngd_{a}_ngd_{b}"
 
+
 def scon_colname(a, full=False, metric='fa'):
     return f"dmri_dti{'full' if full else ''}{metric}_fiberat_{a}"
+
 
 def load_fcon(path=None, include_rec=True, dropna=True,
               exclude_n=True):
@@ -264,6 +274,7 @@ def load_fcon(path=None, include_rec=True, dropna=True,
     scan_info = _scan_info(dataset, 'fcon')
     return dataset, scan_info
 
+
 def load_scon(path=None, include_rec=True, dropna=True,
               full=False, metrics=['fa']):
     """
@@ -303,12 +314,14 @@ def load_scon(path=None, include_rec=True, dropna=True,
     scan_info = _scan_info(dataset, 'scon')
     return dataset, scan_info
 
+
 def _rec_inclusion(data, data_type):
     """recommended inclusion on index"""
     name, columns = IMAGING['include']
     include = load(name)[columns.keys()].rename(columns=columns)
     included = include.loc[include[data_type] == 1].index
     return data.loc[data.index.intersection(included), :]
+
 
 def _scan_info(data, data_type):
     """extra info for index"""
@@ -317,6 +330,7 @@ def _scan_info(data, data_type):
     meanmotion = (load(IMAGING[data_type]).filter(regex='meanmotion$', axis=1)
                   .squeeze().rename('meanmotion'))
     return mri.loc[data.index].join(meanmotion)
+
 
 def _nums_sconfull():
     """nums to names for sconfull columns (match by description)"""
@@ -327,6 +341,7 @@ def _nums_sconfull():
 
     nums_sconfull = nums_scon.str.replace('dmri_dti', 'dmri_dtifull')
     return nums_sconfull
+
 
 def get_scon_descriptions():
     """
@@ -346,9 +361,10 @@ def get_scon_descriptions():
     return scon_descs
 
 
-## COVARIATES
+# COVARIATES
 
 COVAR_PATH = PATH / 'outputs' / 'abcd_covariates.csv'
+
 
 def load_covariates(covars=None, age_year=False, simple_race=False):
     """
@@ -375,6 +391,7 @@ def load_covariates(covars=None, age_year=False, simple_race=False):
         covars['race'] = (covariates['race.6level']
                           .replace('AIAN/NHPI', 'Other').fillna('Other'))
     return covars.sort_index()
+
 
 def filter_siblings(data, random_state=None):
     """
