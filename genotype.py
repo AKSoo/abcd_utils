@@ -2,6 +2,7 @@ from pathlib import Path
 import pandas as pd
 
 GWAS_DIR = Path('inputs/GWAS')
+GENO_DIR = Path('outputs/genotypes')
 PRS_DIR = Path('outputs/prs')
 
 BIM_COLS = ['CHR', 'SNP', 'POS', 'BP', 'A1', 'A2']
@@ -40,7 +41,9 @@ def reference_ids(genes, reference, swap=False):
 
 
 def subs_index(index):
-    return index.str.split('_', n=1).str[1]
+    subs = index.str.split('_', n=1).str[1]
+    return subs.rename('subject')
+
 
 def load_prscores(pheno):
     """
@@ -53,13 +56,27 @@ def load_prscores(pheno):
         scores: DataFrame indexed by subject
     """
     scores_dir = PRS_DIR / pheno / 'scores'
-    cols_dict = {'IID': 'subject', 'SCORESUM': pheno}
 
     scores = 0
     for score_path in scores_dir.glob('*.profile'):
         scores += pd.read_table(score_path, index_col='IID',
-                                usecols=cols_dict.keys())
+                                usecols=['IID', 'SCORESUM'])
 
-    scores.index = subs_index(scores.index).rename(cols_dict['IID'])
-    scores = scores.rename(columns=cols_dict)
-    return scores
+    scores.index = subs_index(scores.index)
+    return scores.rename(columns={'SCORESUM': pheno})
+
+
+def load_pop_struct(sample):
+    """
+    Load population structure (principal components).
+
+    Params:
+        sample: str. Sample name.
+
+    Returns:
+        pop_struct: DataFrame indexed by subject
+    """
+    eigenvec_path = list(GENO_DIR.glob(sample + '.eigenvec'))[0]
+    pop_struct = pd.read_table(eigenvec_path, index_col='IID')
+    pop_struct.index = subs_index(pop_struct.index)
+    return pop_struct.drop(columns='FID')
