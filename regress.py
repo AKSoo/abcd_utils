@@ -24,7 +24,7 @@ def regress(y, X, model, output=None,
     notna = y.notna()
     endog = y.loc[notna]
     exog = add_constant(pd.get_dummies(X.loc[y.index].loc[notna],
-                                       drop_first=True))
+                                       drop_first=True, dtype=float))
     for k, v in model_kws.items():
         if k in ['groups', 'exog_re']:
             model_kws[k] = v.loc[y.index].loc[notna]

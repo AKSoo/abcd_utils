@@ -75,10 +75,12 @@ def combat(data, batch, covars=None, tol=0.0001, max_iter=100,
     if data.isna().any().any():
         raise ValueError('Cannot handle missing data.')
 
-    design = pd.get_dummies(batch.loc[data.index], prefix='_batch')
+    design = pd.get_dummies(batch.loc[data.index], prefix='_batch',
+                            dtype=float)
     n_array, n_batch = design.shape
     if covars is not None:
-        design = design.join(pd.get_dummies(covars, drop_first=True))
+        design = design.join(pd.get_dummies(covars, drop_first=True,
+                                            dtype=float))
     if design.isna().any().any():
         raise ValueError('Missing data in covariates.')
 
