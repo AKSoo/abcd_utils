@@ -20,7 +20,7 @@ def regress(y, X, model, output=None,
     Returns:
         result: Certain results like 'resid' are reindexed to match y.
     """
-    #NOTE missing='drop' is broken for MixedLM
+    # NOTE missing='drop' is broken for MixedLM
     notna = y.notna()
     endog = y.loc[notna]
     exog = add_constant(pd.get_dummies(X.loc[y.index].loc[notna],
@@ -54,7 +54,7 @@ def mass_regress(Y, X, model, output=None,
         model: statsmodels model
         output: str. What statsmodels result attribute to return.
             If None, return Series of RegressionResults.
-        n_procs: int number of processes for parallelization
+        n_procs: int. Number of processes. If less than 1, automatic.
         progressbar: show progress when parallel
         **kwargs: kwargs for regress
 
@@ -67,8 +67,10 @@ def mass_regress(Y, X, model, output=None,
     targets = pd.DataFrame(Y.loc[sample])
     features = pd.DataFrame(X.loc[sample])
 
-    if n_procs > 1:
+    if n_procs != 1:
         import mapply
+        if n_procs < 1:
+            n_procs = -1
         mapply.init(n_workers=n_procs, chunk_size=1, progressbar=progressbar)
         apply = targets.mapply
     else:
